@@ -1,1 +1,146 @@
 
+Solution code:
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <unordered_map>
+#include <queue>
+#include <limits>
+#include <chrono>
+
+using namespace std;
+using namespace std::chrono;
+
+struct Edge {
+    int dest;
+    int weight;
+};
+
+class Graph {
+public:
+    unordered_map<int, vector<Edge>> adjList;
+
+    void addEdge(int src, int dest, int weight) {
+        adjList[src].push_back({dest, weight});
+    }
+
+    void readGraphFromFile(const string& filePath) {
+        ifstream file(filePath);
+        int src, dest, weight;
+        while (file >> src >> dest >> weight) {
+            addEdge(src, dest, weight);
+        }
+    }
+};
+
+unordered_map<int, int> dijkstra(const Graph& graph, int start) {
+    unordered_map<int, int> distances;
+    for (const auto& [node, _] : graph.adjList) {
+        distances[node] = numeric_limits<int>::max();
+    }
+    distances[start] = 0;
+
+    priority_queue<pair<int, int>, vector<pair<int, int>>, greater<pair<int, int>>> pq;
+    pq.push({0, start});
+
+    while (!pq.empty()) {
+        auto [currentDistance, currentNode] = pq.top();
+        pq.pop();
+
+        if (currentDistance > distances[currentNode]) {
+            continue;
+        }
+
+        cout << "Exploring node: " << currentNode << endl;
+
+        auto it = graph.adjList.find(currentNode);
+        if (it != graph.adjList.end()) {
+            for (const auto& edge : it->second) {
+                int distance = currentDistance + edge.weight;
+                cout << "Edge: " << currentNode << " -> " << edge.dest << ", Weight: " << edge.weight << ", New Distance: " << distance << endl;
+                if (distance < distances[edge.dest]) {
+                    distances[edge.dest] = distance;
+                    pq.push({distance, edge.dest});
+                }
+            }
+        } else {
+            cout << "Node " << currentNode << " not found in adjacency list." << endl;
+        }
+    }
+
+    return distances;
+}
+
+unordered_map<int, int> bellmanFord(const Graph& graph, int start) {
+    unordered_map<int, int> distances;
+    for (const auto& [node, _] : graph.adjList) {
+        distances[node] = numeric_limits<int>::max();
+    }
+    distances[start] = 0;
+
+    int V = graph.adjList.size();
+    for (int i = 1; i <= V - 1; ++i) {
+        for (const auto& [u, edges] : graph.adjList) {
+            for (const auto& edge : edges) {
+                int v = edge.dest;
+                int weight = edge.weight;
+                if (distances[u] != numeric_limits<int>::max() && distances[u] + weight < distances[v]) {
+                    distances[v] = distances[u] + weight;
+                }
+            }
+        }
+    }
+
+    for (const auto& [u, edges] : graph.adjList) {
+        for (const auto& edge : edges) {
+            int v = edge.dest;
+            int weight = edge.weight;
+            if (distances[u] != numeric_limits<int>::max() && distances[u] + weight < distances[v]) {
+                throw runtime_error("Graph contains a negative weight cycle");
+            }
+        }
+    }
+
+    return distances;
+}
+
+void printDistances(const unordered_map<int, int>& distances) {
+    for (const auto& [node, distance] : distances) {
+        cout << "Distance from start to " << node << " is " << (distance == numeric_limits<int>::max() ? "infinity" : to_string(distance)) << endl;
+    }
+}
+
+int main() {
+    Graph graph;
+    string filePath = "graph_data.txt";
+    graph.readGraphFromFile(filePath);
+
+    int startNode = 0; // Change as necessary
+
+    auto start = high_resolution_clock::now();
+    auto dijkstraDistances = dijkstra(graph, startNode); // Dijkstra's Algorithm called here
+    auto stop = high_resolution_clock::now();
+    auto dijkstraDuration = duration_cast<microseconds>(stop - start);
+
+    cout << "Dijkstra's Algorithm:" << endl;
+    printDistances(dijkstraDistances);
+    cout << "Time: " << dijkstraDuration.count() << " microseconds" << endl;
+
+    start = high_resolution_clock::now();
+    try {
+        auto bellmanFordDistances = bellmanFord(graph, startNode); // Bellman-Ford Algorithm called here
+        stop = high_resolution_clock::now();
+        auto bellmanFordDuration = duration_cast<microseconds>(stop - start);
+
+        cout << "Bellman-Ford Algorithm:" << endl;
+        printDistances(bellmanFordDistances);
+        cout << "Time: " << bellmanFordDuration.count() << " microseconds" << endl;
+    } catch (const runtime_error& e) {
+        stop = high_resolution_clock::now();
+        auto bellmanFordDuration = duration_cast<microseconds>(stop - start);
+        cout << "Bellman-Ford Algorithm:" << endl;
+        cout << e.what() << endl;
+        cout << "Time: " << bellmanFordDuration.count() << " microseconds" << endl;
+    }
+
+    return 0;
